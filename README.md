@@ -1,3 +1,7 @@
+This project is deprecated and no longer maintained
+===================================================
+
+
 [![Travis Status](https://travis-ci.org/KabbageInc/django-redis-sentinel.svg?style=flat)](https://travis-ci.org/KabbageInc/django-redis-sentinel)
 
 # django-redis-sentinel
