@@ -5,17 +5,17 @@ Plugin for django-redis that supports Redis Sentinel
 """
 
 setup(
-    name="django-redis-sentinel",
-    url="https://github.com/KabbageInc/django-redis-sentinel",
-    author="Chris Heisel",
-    author_email="cheisel@kabbage.com",
-    version="1.0",
+    name="django-sentinel",
+    url="https://github.com/lamoda/django-sentinel",
+    author="Aleksey Partilov",
+    author_email="aleksey.partilov@lamoda.ru",
+    version="0.1.0",
     packages=[
-        "django_redis_sentinel",
+        "django_sentinel",
     ],
     description=description.strip(),
     install_requires=[
-        "django-redis>=3.8.0",
+        "django-redis>=4.7.0,<=4.10.0",
     ],
     zip_safe=False,
     include_package_data=True,
@@ -30,9 +30,10 @@ setup(
         "Programming Language :: Python :: 2",
         "Programming Language :: Python :: 2.7",
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.2',
-        'Programming Language :: Python :: 3.3',
-        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
         "Topic :: Software Development :: Libraries",
         "Topic :: Utilities",
     ],

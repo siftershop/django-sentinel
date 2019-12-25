@@ -1,16 +1,12 @@
-This project is deprecated and no longer maintained
-===================================================
+[![Travis Status](https://travis-ci.org/lamoda/django-sentinel.svg?style=flat)](https://travis-ci.org/lamoda/django-sentinel)
 
-
-[![Travis Status](https://travis-ci.org/KabbageInc/django-redis-sentinel.svg?style=flat)](https://travis-ci.org/KabbageInc/django-redis-sentinel)
-
-# django-redis-sentinel
-Plugin for django-redis that supports Redis Sentinel
+# django-sentinel
+Plugin for django-redis that supports Redis Sentinel. This is fork of [KabbageInc/django-redis-sentinel](https://github.com/KabbageInc/django-redis-sentinel) deprecated project.
 
 # Installation
 
 ```
-pip install django-redis-sentinel
+pip install django-sentinel
 ```
 
 # Usage
@@ -26,7 +22,7 @@ In your settings, do something like this:
             "LOCATION": "redis_master/sentinel-host1:2639,sentinel-host2:2639/0"
             "OPTIONS": {
                 "PASSWORD": 's3cret_passw0rd!',
-                "CLIENT_CLASS": "django_redis_sentinel.SentinelClient",
+                "CLIENT_CLASS": "django_sentinel.SentinelClient",
             }
         }
     }
