@@ -4,6 +4,12 @@ description = """
 Plugin for django-redis that supports Redis Sentinel
 """
 
+# read the contents of your README file
+from os import path
+this_directory = path.abspath(path.dirname(__file__))
+with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
+    long_description = f.read()
+
 setup(
     name="django-sentinel",
     url="https://github.com/lamoda/django-sentinel",
@@ -14,6 +20,8 @@ setup(
         "django_sentinel",
     ],
     description=description.strip(),
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     install_requires=[
         "django-redis>=4.7.0,<=4.10.0",
     ],
