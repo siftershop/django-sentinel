@@ -15,12 +15,18 @@ INSTALLED_APPS = ()
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": [
-            "redis://127.0.0.1:6379?db=1",
-            "redis://127.0.0.1:6379?db=1",
-        ],
+        "LOCATION": 
+            "django-sentinel/127.0.0.1:26379/0,django-sentinel/127.0.0.1:26380/0,django-sentinel/127.0.0.1:26381/0",
         "OPTIONS": {
-            "CLIENT_CLASS": "django_redis_sentinel.SentinelClient",
+            "CLIENT_CLASS": "django_sentinel.SentinelClient",
         }
+    },
+    "with_prefix": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "django-sentinel/127.0.0.1:26379/0,django-sentinel/127.0.0.1:26380/0,django-sentinel/127.0.0.1:26381/0",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_sentinel.SentinelClient",
+        },
+        "KEY_PREFIX": "test-prefix",
     },
 }

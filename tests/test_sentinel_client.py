@@ -1,154 +1,360 @@
-from pretend import stub
+# -*- coding: utf-8 -*-
 import pytest
+import time
+from datetime import datetime
+from django.core.cache import cache, caches
+
+from django_redis.serializers import json as json_serializer
+from django_redis.serializers import msgpack as msgpack_serializer
 
 
-@pytest.fixture
-def Client():
-    from django_redis_sentinel import SentinelClient
-    return SentinelClient
+@pytest.mark.usefixtures("clear_cache")
+class TestDjangoSentinelCache():
 
+    def test_setnx(self):
+        # we should ensure there is no test_key_nx in redis
+        cache.delete("test_key_nx")
+        res = cache.get("test_key_nx", None)
+        assert res is None
 
-@pytest.fixture
-def client(Client):
-    c = Client(
-        server="redis_master/foo:1000,foo:1000/1",
-        params={},
-        backend=object()
-    )
-    return c
+        res = cache.set("test_key_nx", 1, nx=True)
+        assert res
+        # test that second set will have
+        res = cache.set("test_key_nx", 2, nx=True)
+        assert not res
+        res = cache.get("test_key_nx")
+        assert res == 1
 
+        cache.delete("test_key_nx")
+        res = cache.get("test_key_nx", None)
+        assert res == None
 
-@pytest.fixture
-def ImproperlyConfigured():
-    from django.core.exceptions import ImproperlyConfigured
-    return ImproperlyConfigured
+    def test_setnx_timeout(self):
+        # test that timeout still works for nx=True
+        res = cache.set("test_key_nx", 1, timeout=2, nx=True)
+        assert res
+        time.sleep(3)
+        res = cache.get("test_key_nx", None)
+        assert res is None
 
+        # test that timeout will not affect key, if it was there
+        cache.set("test_key_nx", 1)
+        res = cache.set("test_key_nx", 2, timeout=2, nx=True)
+        assert not res
+        time.sleep(3)
+        res = cache.get("test_key_nx", None)
+        assert res == 1
 
-@pytest.fixture
-def MockSentinel():
-    class MockSentinel(object):
-        def __init__(self, hosts, socket_timeout, password):
-            pass
+        cache.delete("test_key_nx")
+        res = cache.get("test_key_nx", None)
+        assert res is None
 
-        def discover_master(self, master_name):
-            return ("write_host", 6379)
+    def test_save_and_integer(self):
+        cache.set("test_key", 2)
+        res = cache.get("test_key", "Foo")
 
-        def discover_slaves(self, master_name):
-            return [
-                ("slave_host", 6379),
-                ("slave_host2", 6379),
-            ]
-    return MockSentinel
+        assert isinstance(res, int)
+        assert res == 2
 
+    def test_save_string(self):
+        cache.set("test_key", "hello" * 1000)
+        res = cache.get("test_key")
 
-def test_client_exists(Client):
-    c = Client(
-        server="redis_master/foo:1000,foo:1000/1",
-        params={},
-        backend=object())
-    assert c
+        assert isinstance(res, str)
+        assert res == "hello" * 1000
 
+        cache.set("test_key", "2")
+        res = cache.get("test_key")
 
-def test_parse_connection_string(Client):
-    constring = "redis_master/foo:1000,foo:1000/1"
-    c = Client(
-        server=constring,
-        params={},
-        backend=object())
-    expected = (
-        "redis_master",
-        [("foo", 1000), ("foo", 1000)],
-        "1",
-    )
+        assert isinstance(res, str)
+        assert res == "2"
 
-    assert expected == c.parse_connection_string(constring)
+    def test_save_unicode(self):
+        cache.set("test_key", "heló")
+        res = cache.get("test_key")
 
+        assert isinstance(res, str)
+        assert res == "heló"
 
-_bad_connection_strings = [
-        "redis_master/foo:1000",
-        "redis_master/foo:abcd",
-]
+    def test_save_dict(self):
+        if isinstance(cache.client._serializer,
+                      json_serializer.JSONSerializer):
+            self.skipTest("Datetimes are not JSON serializable")
 
+        if isinstance(cache.client._serializer,
+                      msgpack_serializer.MSGPackSerializer):
+            # MSGPackSerializer serializers use the isoformat for datetimes
+            # https://github.com/msgpack/msgpack-python/issues/12
+            now_dt = datetime.now().isoformat()
+        else:
+            now_dt = datetime.now()
 
-@pytest.mark.parametrize("constring", _bad_connection_strings)
-def test_connection_string_sad(Client, ImproperlyConfigured, constring):
-    with pytest.raises(ImproperlyConfigured):
-        c = Client(
-            server=constring,
-            params={},
-            backend=object()
-        )
-        c.parse_connection_string(constring)
+        test_dict = {"id": 1, "date": now_dt, "name": "Foo"}
 
+        cache.set("test_key", test_dict)
+        res = cache.get("test_key")
 
-def test_get_client_write(client, monkeypatch):
-    monkeypatch.setattr(client, 'connect', lambda write: write)
-    actual = client.get_client(write=True)
-    assert actual is True
+        assert isinstance(res, dict)
+        assert res["id"] == 1
+        assert res["name"] == "Foo"
+        assert res["date"] == now_dt
 
+    def test_save_float(self):
+        float_val = 1.345620002
 
-def test_get_client_read(client, monkeypatch):
-    monkeypatch.setattr(client, 'connect', lambda write: write)
-    actual = client.get_client(write=False)
-    assert actual is False
+        cache.set("test_key", float_val)
+        res = cache.get("test_key")
 
+        assert isinstance(res, float)
+        assert res == float_val
 
-def test_connect_write(client, monkeypatch, MockSentinel):
-    monkeypatch.setattr(client, 'connection_factory', stub(connect=lambda url: url))
-    monkeypatch.setattr(client, 'parse_connection_string', lambda x: ("foo", 0, "1"))
+    def test_timeout(self):
+        cache.set("test_key", 222, timeout=3)
+        time.sleep(4)
 
-    assert "redis://write_host:6379/1" == client.connect(True, MockSentinel)
+        res = cache.get("test_key", None)
+        assert res is None
 
+    def test_timeout_0(self):
+        cache.set("test_key", 222, timeout=0)
+        res = cache.get("test_key", None)
+        assert res is None
 
-def test_connect_read(client, monkeypatch, MockSentinel):
-    monkeypatch.setattr(client, 'connection_factory', stub(connect=lambda url: url))
-    monkeypatch.setattr(client, 'parse_connection_string', lambda x: ("foo", 0, "1"))
+    def test_set_add(self):
+        cache.set("add_key", "Initial value")
+        cache.add("add_key", "New value")
+        res = cache.get("add_key")
 
-    expected_results = [
-        "redis://slave_host:6379/1",
-        "redis://slave_host2:6379/1",
-        "redis://write_host:6379/1"
-    ]
-    assert client.connect(False, MockSentinel) in expected_results
+        assert res == "Initial value"
 
+    def test_get_many(self):
+        cache.set("a", 1)
+        cache.set("b", 2)
+        cache.set("c", 3)
 
-def test_close_read(client, monkeypatch):
-    stub_client = stub(connection_pool=stub(_available_connections=[
-        stub(disconnect=lambda: True),
-        stub(disconnect=lambda: True),
-    ]))
-    monkeypatch.setattr(client, "_client_read", stub_client)
-    monkeypatch.setattr(client, "_client_write", None)
+        res = cache.get_many(["a", "b", "c"])
+        assert res == {"a": 1, "b": 2, "c": 3}
 
-    client.close()
+    def test_get_many_unicode(self):
+        cache.set("a", "1")
+        cache.set("b", "2")
+        cache.set("c", "3")
 
-    assert client._client_write is None
-    assert client._client_read is None
+        res = cache.get_many(["a", "b", "c"])
+        assert res == {"a": "1", "b": "2", "c": "3"}
 
+    def test_set_many(self):
+        cache.set_many({"a": 1, "b": 2, "c": 3})
+        res = cache.get_many(["a", "b", "c"])
+        assert res == {"a": 1, "b": 2, "c": 3}
 
-def test_close_write(client, monkeypatch):
-    stub_client = stub(connection_pool=stub(_available_connections=[
-        stub(disconnect=lambda: True),
-        stub(disconnect=lambda: True),
-    ]))
-    monkeypatch.setattr(client, "_client_read", None)
-    monkeypatch.setattr(client, "_client_write", stub_client)
+    def test_delete(self):
+        cache.set_many({"a": 1, "b": 2, "c": 3})
+        res = cache.delete("a")
+        assert bool(res)
 
-    client.close()
+        res = cache.get_many(["a", "b", "c"])
+        assert res == {"b": 2, "c": 3}
 
-    assert client._client_write is None
-    assert client._client_read is None
+        res = cache.delete("a")
+        assert not bool(res)
 
+    def test_delete_many(self):
+        cache.set_many({"a": 1, "b": 2, "c": 3})
+        res = cache.delete_many(["a", "b"])
+        assert bool(res)
 
-def test_close_both(client, monkeypatch):
-    stub_client = stub(connection_pool=stub(_available_connections=[
-        stub(disconnect=lambda: True),
-        stub(disconnect=lambda: True),
-    ]))
-    monkeypatch.setattr(client, "_client_read", stub_client)
-    monkeypatch.setattr(client, "_client_write", stub_client)
+        res = cache.get_many(["a", "b", "c"])
+        assert res == {"c": 3}
 
-    client.close()
+        res = cache.delete_many(["a", "b"])
+        assert not bool(res)
 
-    assert client._client_write is None
-    assert client._client_read is None
+    def test_delete_many_generator(self):
+        cache.set_many({"a": 1, "b": 2, "c": 3})
+        res = cache.delete_many(key for key in ["a", "b"])
+        assert bool(res)
+
+        res = cache.get_many(["a", "b", "c"])
+        assert res == {"c": 3}
+
+        res = cache.delete_many(["a", "b"])
+        assert not bool(res)
+
+    def test_delete_many_empty_generator(self):
+        res = cache.delete_many(key for key in [])
+        assert not bool(res)
+
+    def test_incr(self):
+        cache.set("num", 1)
+
+        cache.incr("num")
+        res = cache.get("num")
+        assert res == 2
+
+        cache.incr("num", 10)
+        res = cache.get("num")
+        assert res == 12
+
+        # max 64 bit signed int
+        cache.set("num", 9223372036854775807)
+
+        cache.incr("num")
+        res = cache.get("num")
+        assert res == 9223372036854775808
+
+        cache.incr("num", 2)
+        res = cache.get("num")
+        assert res == 9223372036854775810
+
+        cache.set("num", 3)
+
+        cache.incr("num", 2)
+        res = cache.get("num")
+        assert res == 5
+
+    def test_incr_error(self):
+        with pytest.raises(ValueError):
+            # key not exists
+            cache.incr('numnum')
+
+    def test_get_set_bool(self):
+        cache.set("bool", True)
+        res = cache.get("bool")
+
+        assert isinstance(res, bool)
+        assert res is True
+
+        cache.set("bool", False)
+        res = cache.get("bool")
+
+        assert isinstance(res, bool)
+        assert res is False
+
+    def test_decr(self):
+        cache.set("num", 20)
+
+        cache.decr("num")
+        res = cache.get("num")
+        assert res == 19
+
+        cache.decr("num", 20)
+        res = cache.get("num")
+        assert res == -1
+
+        cache.decr("num", 2)
+        res = cache.get("num")
+        assert res == -3
+
+        cache.set("num", 20)
+
+        cache.decr("num")
+        res = cache.get("num")
+        assert res == 19
+
+        # max 64 bit signed int + 1
+        cache.set("num", 9223372036854775808)
+
+        cache.decr("num")
+        res = cache.get("num")
+        assert res == 9223372036854775807
+
+        cache.decr("num", 2)
+        res = cache.get("num")
+        assert res == 9223372036854775805
+
+    def test_version(self):
+        cache.set("keytest", 2, version=2)
+        res = cache.get("keytest")
+        assert res is None
+
+        res = cache.get("keytest", version=2)
+        assert res == 2
+
+    def test_incr_version(self):
+        cache.set("keytest", 2)
+        cache.incr_version("keytest")
+
+        res = cache.get("keytest")
+        assert res == None
+
+        res = cache.get("keytest", version=2)
+        assert res == 2
+
+    def test_delete_pattern(self):
+        for key in ["foo-aa", "foo-ab", "foo-bb", "foo-bc"]:
+            cache.set(key, "foo")
+
+        res = cache.delete_pattern("*foo-a*")
+        assert bool(res)
+
+        keys = cache.keys("foo*")
+        assert set(keys) == set(["foo-bb", "foo-bc"])
+
+        res = cache.delete_pattern("*foo-a*")
+        assert not bool(res)
+
+    def test_close(self):
+        cache = caches["default"]
+        cache.set("f", "1")
+        cache.close()
+
+    def test_ttl(self):
+        cache = caches["default"]
+        # Test ttl
+        cache.set("foo", "bar", 10)
+        ttl = cache.ttl("foo")
+        assert ttl + 0.5 > 10
+
+        # Test ttl None
+        cache.set("foo", "foo", timeout=None)
+        ttl = cache.ttl("foo")
+        assert ttl is None
+
+        # Test ttl with expired key
+        cache.set("foo", "foo", timeout=-1)
+        ttl = cache.ttl("foo")
+        assert ttl == 0
+
+        # Test ttl with not existent key
+        ttl = cache.ttl("not-existent-key")
+        assert ttl == 0
+
+    def test_persist(self):
+        cache.set("foo", "bar", timeout=20)
+        cache.persist("foo")
+
+        ttl = cache.ttl("foo")
+        assert ttl is None
+
+    def test_expire(self):
+        cache.set("foo", "bar", timeout=None)
+        cache.expire("foo", 20)
+        ttl = cache.ttl("foo")
+        assert ttl + 0.5 > 20
+
+    def test_lock(self):
+        lock = cache.lock("foobar")
+        lock.acquire(blocking=True)
+
+        assert cache.has_key("foobar")
+        lock.release()
+        assert not cache.has_key("foobar")
+
+    def test_iter_keys(self):
+        cache.set("foo1", 1)
+        cache.set("foo2", 1)
+        cache.set("foo3", 1)
+
+        # Test simple result
+        result = set(cache.iter_keys("foo*"))
+        assert result == set(["foo1", "foo2", "foo3"])
+
+        # Test limited result
+        result = list(cache.iter_keys("foo*", itersize=2))
+        assert len(result) == 3
+
+        # Test generator object
+        result = cache.iter_keys("foo*")
+        assert next(result) != None
+
