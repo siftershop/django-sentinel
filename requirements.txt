@@ -2,6 +2,6 @@
 pytest
 pytest-django
 six
-django==1.8.19
-django-redis==4.7.0
+django>=2.0.0
+django-redis>=4.7.0,<5
 msgpack>=0.6.0
