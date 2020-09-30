@@ -15,7 +15,7 @@ setup(
     url="https://github.com/lamoda/django-sentinel",
     author="Aleksey Partilov",
     author_email="aleksey.partilov@lamoda.ru",
-    version="0.1.0",
+    version="0.1.1",
     packages=[
         "django_sentinel",
     ],
@@ -23,7 +23,7 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     install_requires=[
-        "django-redis>=4.7.0,<=4.10.0",
+        "django-redis>=4.7.0,<5",
     ],
     zip_safe=False,
     include_package_data=True,
