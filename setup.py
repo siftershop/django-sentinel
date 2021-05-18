@@ -15,7 +15,7 @@ setup(
     url="https://github.com/lamoda/django-sentinel",
     author="Aleksey Partilov",
     author_email="aleksey.partilov@lamoda.ru",
-    version="0.1.1",
+    version="0.1.2",
     packages=[
         "django_sentinel",
     ],
